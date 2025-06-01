@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "align"
+version = "0.1.0"
+description = ""
+authors = ["Shai Engel"]
+packages = [{include = "align"}]
+
+[virtualenvs]
+in-project = true
+
+[tool.poetry.scripts]
+start = "app:main"
+
+[[tool.poetry.source]]
+name = "torch-cuda"
+url = "https://download.pytorch.org/whl/cu118"  
+priority = "explicit"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+load-dotenv = "^0.1.0"
+python-docx = "^1.1.2"
+torch = {version = "^2.7.0", source = "torch-cuda"}
+torchvision = {version = "^0.22.0", source = "torch-cuda"}
+torchaudio = {version = "^2.7.0", source = "torch-cuda"}
+stable-ts = {extras = ["hf"], version = "^2.19.0"}
+pydub = "^0.25.1"
+librosa = "^0.11.0"
+arabic-reshaper = "^3.0.0"
+python-bidi = "^0.6.6"
+ctranslate2 = {version = "4.4.0", extras = ["gpu"]}
+faster-whisper = "^1.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
