@@ -3,7 +3,8 @@ from align.handler.transcribe import (audio_to_text,
                                       audio_to_text_ivirit, 
                                       audio_to_text_aligner,
                                       write_to_srt,
-                                      get_model
+                                      get_model,
+                                      convert_audio
             )
 from align.services.logger import init_logger, format_rtl
 from align.services.docx_util import (
@@ -14,7 +15,7 @@ from align.services.docx_util import (
     
 )
 from align.services.utils import create_folder
-from align.services.statistics import add_probabilties_to_srt
+from align.services.statistics import add_probabilties_to_srt, weighted_run_score
 import re
 
 
@@ -27,29 +28,43 @@ def aligner(audio_file, text: list[str]):
     create_folder("output")
     text0 = read_docx(text[0])
     text1 = read_docx(text[1])
-    text2 = read_docx(text[2])    
-    text, probability_list= search_starting(audio_file, [text0, text1, text2])
+    text2 = read_docx(text[2]) 
+    audio_data = convert_audio(audio_file)  # Ensure audio is in the correct format
+    model = get_model()   
+    text, probability_list= search_starting(model, audio_data, [text0, text1, text2])
     
-    cut_from_end = search_end(probability_list, text)    
-    words = text.split()
-    full_text = ' '.join(words[:cut_from_end + 1])
-    model = get_model()
-    response, captured_warnings = audio_to_text_aligner(model, audio_file, full_text, "output")
+    if text2 != "":
+        cut_from_end = search_end(probability_list, text)    
+        words = text.split()
+        full_text = ' '.join(words[:cut_from_end + 1])
+    else:
+        full_text = text
+    
+    response, captured_warnings = audio_to_text_aligner(model, audio_data, full_text, "output")
     logger.info(captured_warnings)
     #logger.info(f"Final word alignement")
     #logger.info(format_rtl(full_text))
     output_file = write_to_srt(response, audio_file, "output") 
-    add_probabilties_to_srt(output_file, response.ori_dict["segments"][0]["words"]) 
+    result_probability_list = add_probabilties_to_srt(output_file, response.ori_dict["segments"][0]["words"])
+    weighted_run_score(result_probability_list)
+    
 
 
-def search_starting(audio_file, text: list[str]):
-    words_count = START_SEARCHING_INDEX
-    model = get_model()
+def search_starting(model, audio_file, text: list[str]):
+    words_count = START_SEARCHING_INDEX    
     
     clean_text0 = remove_marks_for_aligner(text[0])
     clean_text1 = remove_marks_for_aligner(text[1])
     clean_text2 = remove_marks_for_aligner(text[2])
-    combined_text = combine_end_text(clean_text1, clean_text2, START_SEARCHING_INDEX)
+    if clean_text2 == "":
+        combined_text = clean_text1
+    else:
+        combined_text = combine_end_text(clean_text1, clean_text2, START_SEARCHING_INDEX)
+    
+    if clean_text0 == "":
+        response, captured_warnings = audio_to_text_aligner(model, audio_file, combined_text, "output")
+        return combined_text, response.ori_dict["segments"][0]["words"]     
+    
     while words_count >= END_SEARCHING_INDEX: 
         logger.info(f"Aligning backword with {words_count} words from last page")   
         text_search = combine_start_text(clean_text0, combined_text, words_count)     

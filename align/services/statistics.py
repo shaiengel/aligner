@@ -59,7 +59,7 @@ def add_probabilties_to_srt(srt_file, words_with_probs):
 
     logger.info(f"Low confidence words count: {low_confidence_counter}/{len(entries)}")
     # Write output file
-    with open(f'{srt_file}.txt', 'w', encoding='utf-8') as f:
+    with open(f'{srt_file}.txt', 'w', encoding='utf-8-sig') as f:
         f.write('\n'.join(output_lines))  
 
     return result_probability_list     

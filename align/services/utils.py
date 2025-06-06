@@ -1,5 +1,6 @@
 from pathlib import Path
 import logging
+import re
 
 def create_folder(folder_name):
     try:
@@ -13,3 +14,28 @@ def create_folder(folder_name):
         
     except Exception as e:
         logging.info(f"Error creating folder: {str(e)}")
+
+def format_text(text):
+    # First handle combined punctuation marks without spacing between them
+    combined_punct = ['?!', '!?', '...']
+    temp_replacements = {
+        '?!': '__QMARK_EMARK__',
+        '!?': '__EMARK_QMARK__',
+        '...': '__ELLIPSIS__'
+    }
+    
+    # Temporarily replace combined punctuation
+    for punct in combined_punct:
+        text = text.replace(punct, temp_replacements[punct])
+    
+    # Add spaces after single punctuation marks
+    text = re.sub(r'([.,!?:;])(?![\s\d])', r'\1 ', text)
+    
+    # Restore combined punctuation
+    for punct, temp in temp_replacements.items():
+        text = text.replace(temp, punct + ' ')
+    
+    # Remove any double spaces
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()        

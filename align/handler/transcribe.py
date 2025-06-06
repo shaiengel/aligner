@@ -8,23 +8,34 @@ from align.services.audio_utils import preprocess_audio
 from transformers import pipeline
 from faster_whisper import WhisperModel
 
+import librosa
+import numpy as np
+
 import warnings
 
 def get_model():
     model = stable_whisper.load_model('base', device='cuda')    
     return model
 
-def audio_to_text_aligner(model, audio_file, text, output_folder = "output"):
+def convert_audio(audio_file):
+    audio_data, sr = librosa.load(audio_file, sr=16000, mono=True)
+    audio_data = audio_data.astype(np.float32)
+    return audio_data
+
+
+def audio_to_text_aligner(model, audio_data, text, output_folder = "output"):
     captured_warnings = []
     def warning_collector(message, category, filename, lineno, file=None, line=None):
         captured_warnings.append(str(message))
     
-    original_showwarning = warnings.showwarning
-    warnings.showwarning = warning_collector
+    #original_showwarning = warnings.showwarning
+    #warnings.showwarning = warning_collector
     
-    result = model.align(audio_file, text, language='he')    
+    result = model.align(audio_data, text, language='he', vad=True)   
+    
+    
 
-    warnings.showwarning = original_showwarning    
+    #warnings.showwarning = original_showwarning    
     
     
 
@@ -33,6 +44,9 @@ def audio_to_text_aligner(model, audio_file, text, output_folder = "output"):
 def write_to_srt(result, audio_file, output_folder):
     filename = Path(audio_file).stem   
     output_file = Path(output_folder) / f'{filename}.srt'  
+    result = result.merge_by_gap(min_gap = 0.2) 
+    result = result.split_by_duration(max_dur = 20) 
+    #result.adjust_gaps()  
     result.to_srt_vtt(f'{output_file}', word_level=False)
     return output_file
     

@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 import ast
 
+
 NIQQUD_RE = re.compile(r'[\u0591-\u05C7]')
 
 def remove_nikud(text):
@@ -17,6 +18,7 @@ def remove_marks_for_aligner(text):
     clean_text = (text                 
                  .replace('-', ' ')
                  .replace('–', ' ')
+                 .replace('—', ' ')
                  .replace(';', '.')
                  .replace(':', '.')
                  .replace('"', '')
@@ -27,6 +29,8 @@ def remove_marks_for_aligner(text):
     return clean_text
 
 def read_docx(file_path):
+    if file_path == "":
+        return ""
     doc = Document(file_path)
     full_text = []
     
@@ -57,6 +61,24 @@ def read_docx(file_path):
 
     # Join with spaces to create continuous text
     return ' '.join(full_text)
+
+def write_docx(output_file_path, text):
+    try:
+        document = Document()
+        
+        # Replace normal spaces after punctuation with non-breaking spaces
+        text = text.replace('. ', '.\u00A0')
+        text = text.replace(', ', ',\u00A0')
+        text = text.replace('? ', '?\u00A0')
+        text = text.replace('! ', '!\u00A0')
+        text = text.replace(': ', ':\u00A0')
+        text = text.replace('; ', ';\u00A0')
+        
+        document.add_paragraph(text)
+
+        document.save(output_file_path)
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 def read_file_content(filepath):
     with open(filepath, 'r', encoding='utf-8') as file:
