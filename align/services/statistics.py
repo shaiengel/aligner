@@ -42,7 +42,7 @@ def add_probabilties_to_srt(srt_file, words_with_probs):
             output_lines.append(line)
             probs.reverse()
             output_lines.append(str(probs))
-            result_probability_list.extend(probs)
+            result_probability_list.append(probs)
 
             low_conf_count = sum(1 for p in probs if p < 0.1)
             if low_conf_count > 2:

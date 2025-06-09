@@ -1,5 +1,5 @@
 .venv/
-repo/
+repo*/
 output/
 */__pycache__/
 */*/__pycache__/

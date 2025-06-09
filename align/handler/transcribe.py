@@ -23,7 +23,7 @@ def convert_audio(audio_file):
     return audio_data
 
 
-def audio_to_text_aligner(model, audio_data, text, output_folder = "output"):
+def audio_to_text_aligner(model, audio_data, text):
     captured_warnings = []
     def warning_collector(message, category, filename, lineno, file=None, line=None):
         captured_warnings.append(str(message))
@@ -31,7 +31,7 @@ def audio_to_text_aligner(model, audio_data, text, output_folder = "output"):
     #original_showwarning = warnings.showwarning
     #warnings.showwarning = warning_collector
     
-    result = model.align(audio_data, text, language='he', vad=True)   
+    result = model.align(audio_data, text, language='he', vad = True)   
     
     
 
@@ -41,11 +41,62 @@ def audio_to_text_aligner(model, audio_data, text, output_folder = "output"):
 
     return result, captured_warnings
 
+def clean_alignment_response(response):
+    print("Cleaning alignment response...")
+    last_probability = 1.0
+    for i, segment in enumerate(response):
+       delta = segment.end - segment.start
+       if len(segment.words) > 0:
+        start_probability = segment.words[0].probability 
+        if start_probability < 0.1 and last_probability < 0.1:
+           print(f"Removing segment {i} with low start probability: {start_probability} and last probability: {last_probability}")
+           response.remove_segment(i)
+           last_probability = 1
+           continue
+        else:
+           last_probability = segment.words[-1].probability
+
+        number_of_words = len(segment.words)
+        counter_of_low_prob = 0
+        for word in segment.words:
+            if word.probability < 0.1:
+                counter_of_low_prob += 1
+        if number_of_words == 1 and counter_of_low_prob == 1:
+            print(f"Removing segment {i} with only one low probability word: {counter_of_low_prob}")
+            response.remove_segment(i)
+            last_probability = 1
+            continue
+        elif number_of_words == 2 and counter_of_low_prob == 2:
+            print(f"Removing segment {i} with two low probability words: {counter_of_low_prob}")
+            response.remove_segment(i)
+            last_probability = 1
+            continue                 
+        elif counter_of_low_prob >= 3:
+            print(f"Removing segment {i} with too many low probability words: {counter_of_low_prob}")
+            response.remove_segment(i)
+            last_probability = 1
+            continue 
+           
+        number_of_words = len(segment.words)
+        delta = segment.end - segment.start
+        avg = delta / number_of_words if number_of_words > 0 else 0
+        if avg <= 0.2:
+            print(f"Removing segment {i} with average duration {avg:.2f} seconds")
+            last_probability = 1
+            response.remove_segment(i)
+
+    return response
+
+        
+        
+    return response
+
 def write_to_srt(result, audio_file, output_folder):
     filename = Path(audio_file).stem   
     output_file = Path(output_folder) / f'{filename}.srt'  
     result = result.merge_by_gap(min_gap = 0.2) 
     result = result.split_by_duration(max_dur = 20) 
+    
     #result.adjust_gaps()  
     result.to_srt_vtt(f'{output_file}', word_level=False)
     return output_file

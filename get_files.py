@@ -21,50 +21,43 @@ def strip_html_tags(text):
 STEIN_URL = "https://www.sefaria.org.il/api/v3/texts/{}.{}{}?version=primary&version=translation&fill_in_missing_segments=1&return_format=wrap_all_entities"
 
 massechets = [
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Shabbat', 'end': '157', 'end_amud': '2'},
-    {'name': 'Eruvin', 'end': '105', 'end_amud': '1'},
-    {'name': 'Pesachim', 'end': '121', 'end_amud': '2'},
-    {'name': 'Rosh_Hashana', 'end': '35', 'end_amud': '1'},
-    {'name': 'Yoma', 'end': '88', 'end_amud': '1'},
-    {'name': 'Sukkah', 'end': '56', 'end_amud': '2'},
-    {'name': 'Beitzah', 'end': '40', 'end_amud': '2'},
-    {'name': 'Taanit', 'end': '31', 'end_amud': '1'},
-    {'name': 'Megillah', 'end': '32', 'end_amud': '1'},
-    {'name': 'Moed_Katan', 'end': '29', 'end_amud': '1'},
-    {'name': 'Chagigah', 'end': '27', 'end_amud': '1'},
-    {'name': 'Yevamot', 'end': '122', 'end_amud': '2'},
-    {'name': 'Ketubot', 'end': '112', 'end_amud': '2'},
-    {'name': 'Nedarim', 'end': '91', 'end_amud': '2'},
-    {'name': 'Nazir', 'end': '66', 'end_amud': '2'},
-    {'name': 'Sotah', 'end': '49', 'end_amud': '2'},
-    {'name': 'Gittin', 'end': '90', 'end_amud': '2'},
-    {'name': 'Kiddushin', 'end': '82', 'end_amud': '2'},
-    {'name': 'Bava_Kamma', 'end': '119', 'end_amud': '2'},
-    {'name': 'Bava_Metzia', 'end': '119', 'end_amud': '1'},
-    {'name': 'Bava_Batra', 'end': '176', 'end_amud': '2'},
-    {'name': 'Sanhedrin', 'end': '113', 'end_amud': '2'},
-    {'name': 'Makkot', 'end': '24', 'end_amud': '2'},
-    {'name': 'Shevuot', 'end': '49', 'end_amud': '2'},
-    {'name': 'Avodah_Zarah', 'end': '76', 'end_amud': '2'},
-    {'name': 'Horayot', 'end': '14', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Chagigah', 'end': '27', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
-    {'name': 'Berakhot', 'end': '64', 'end_amud': '1'}
+    #{'name': 'Berakhot', 'end': '64', 'end_amud': '1'},
+    #{'name': 'Shabbat', 'end': '157', 'end_amud': '2'},
+    #{'name': 'Eruvin', 'end': '105', 'end_amud': '1'},
+    #{'name': 'Pesachim', 'end': '121', 'end_amud': '2'},
+    #{'name': 'Rosh_Hashanah', 'end': '35', 'end_amud': '1'},
+    #{'name': 'Yoma', 'end': '88', 'end_amud': '1'},
+    #{'name': 'Sukkah', 'end': '56', 'end_amud': '2'},
+    #{'name': 'Beitzah', 'end': '40', 'end_amud': '2'},
+    #{'name': 'Taanit', 'end': '31', 'end_amud': '1'},
+    #{'name': 'Megillah', 'end': '32', 'end_amud': '1'},
+    #{'name': 'Moed_Katan', 'end': '29', 'end_amud': '1'},
+    #{'name': 'Chagigah', 'end': '27', 'end_amud': '1'},
+    #{'name': 'Yevamot', 'end': '122', 'end_amud': '2'},
+    #{'name': 'Ketubot', 'end': '112', 'end_amud': '2'},
+    #{'name': 'Nedarim', 'end': '91', 'end_amud': '2'},
+    #{'name': 'Nazir', 'end': '66', 'end_amud': '2'},
+    #{'name': 'Sotah', 'end': '49', 'end_amud': '2'},
+    #{'name': 'Gittin', 'end': '90', 'end_amud': '2'},
+    #{'name': 'Kiddushin', 'end': '82', 'end_amud': '2'},
+    #{'name': 'Bava_Kamma', 'end': '119', 'end_amud': '2'},
+    #{'name': 'Bava_Metzia', 'end': '119', 'end_amud': '1'},
+    #{'name': 'Bava_Batra', 'end': '176', 'end_amud': '2'},
+    #{'name': 'Sanhedrin', 'end': '113', 'end_amud': '2'},
+    #{'name': 'Makkot', 'end': '24', 'end_amud': '2'},
+    #{'name': 'Shevuot', 'end': '49', 'end_amud': '2'},
+    #{'name': 'Avodah_Zarah', 'end': '76', 'end_amud': '2'},
+    #{'name': 'Horayot', 'end': '14', 'end_amud': '1'},
+    #{'name': 'Zevachim', 'end': '120', 'end_amud': '2'},
+    #{'name': 'Menachot', 'end': '110', 'end_amud': '1'},
+    #{'name': 'Chullin', 'end': '142', 'end_amud': '1'},
+    #{'name': 'Bekhorot', 'end': '61', 'end_amud': '1'},
+    #{'name': 'Arakhin', 'end': '34', 'end_amud': '1'},
+    #{'name': 'Temurah', 'end': '34', 'end_amud': '1'},
+    #{'name': 'Keritot', 'end': '28', 'end_amud': '2'},
+    #{'name': 'Meilah', 'end': '22', 'end_amud': '1'},
+    {'name': 'Tamid', 'end': '33', 'end_amud': '2', 'start': '25', 'start_amud': '2'},    
+    #{'name': 'Niddah', 'end': '73', 'end_amud': '1'}    
 ]
 
 def process_hadran(text):
@@ -136,11 +129,12 @@ def read_daf(name, daf):
     return text
 
 def read_masechet(name, end, end_amud):
-    for i in range(2, end):
+    for i in range(34, end):
+        print(f"Processing daf {i} of {name}...")
         text = read_daf(name, i)
         write_docx(f"repo\\{name}\\{name}_{i}.docx", text)
-
-    end += 1
+    
+    print(f"Processing end daf {end} of {name}...")
     if end_amud == 2: 
         text = read_daf(name, end) 
         text = process_hadran(text)
@@ -156,9 +150,11 @@ def main():
     create_folder("repo")
     
     for masechet in massechets:
-        #text = read_amud(masechet['name'], 64, 1)
+        #text = read_amud(masechet['name'], 25, 2)
+        #write_docx(f"repo\\{masechet['name']}\\{masechet['name']}_{25}.docx", text) 
         #text, massechet = process_hadran(text)
         create_folder(f"repo\\{masechet['name']}")
+        print(f"Processing {masechet['name']}...")
         read_masechet(masechet['name'], int(masechet['end']), int(masechet['end_amud']))
         '''if masechet['end_amud'] == '1':
             amud = 'A'
