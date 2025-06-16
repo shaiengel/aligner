@@ -13,6 +13,10 @@ def remove_nikud(text):
     # Step 3: Strip surrounding whitespace
     return text.strip()
 
+def remove_parantheses(text):
+    cleaned_text = re.sub(r'\([^)]*\)', '', text)
+    return cleaned_text
+
 def remove_marks_for_aligner(text):   
     
     clean_text = (text                 
@@ -25,7 +29,7 @@ def remove_marks_for_aligner(text):
                  .replace('״', '')
                  .replace('\'', '')
                  .replace('!', '.'))
-                           
+                         
     return clean_text
 
 def read_docx(file_path):

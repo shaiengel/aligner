@@ -23,7 +23,7 @@ def convert_audio(audio_file):
     return audio_data
 
 
-def audio_to_text_aligner(model, audio_data, text):
+def audio_to_text_aligner(model, audio_data, text, vad=False):
     captured_warnings = []
     def warning_collector(message, category, filename, lineno, file=None, line=None):
         captured_warnings.append(str(message))
@@ -31,7 +31,7 @@ def audio_to_text_aligner(model, audio_data, text):
     #original_showwarning = warnings.showwarning
     #warnings.showwarning = warning_collector
     
-    result = model.align(audio_data, text, language='he', vad = True)   
+    result = model.align(audio_data, text, language='he', vad=vad)  # Use VAD if needed
     
     
 

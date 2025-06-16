@@ -1,6 +1,9 @@
 from pathlib import Path
 import logging
 import re
+from align.services.logger import get_logger
+
+logger = get_logger()
 
 def create_folder(folder_name):
     try:
@@ -10,7 +13,7 @@ def create_folder(folder_name):
         
         # Create folder if it doesn't exist
         new_folder_path.mkdir(exist_ok=True)
-        logging.info(f"Folder created successfully at: {new_folder_path}")
+        logger.info(f"Folder created successfully at: {new_folder_path}")
         
     except Exception as e:
         logging.info(f"Error creating folder: {str(e)}")

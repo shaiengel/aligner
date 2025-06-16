@@ -1,7 +1,9 @@
 
 import re
 from align.services.logger import init_logger, format_rtl
-logger = init_logger(__name__)
+from align.services.logger import get_logger
+
+logger = get_logger()
 
 def add_probabilties_to_srt(srt_file, words_with_probs):
     low_confidence_counter = 0

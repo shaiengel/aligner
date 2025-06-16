@@ -11,37 +11,56 @@ from align.services.docx_util import (
     remove_marks_for_aligner,
     read_docx,
     combine_end_text,
-    combine_start_text
+    combine_start_text,
+    remove_parantheses
     
 )
 from align.services.utils import create_folder
 from align.services.statistics import add_probabilties_to_srt, weighted_run_score
 import re
 
+from align.services.logger import get_logger
 
-logger = init_logger(__name__)
+logger = get_logger()
+
 START_SEARCHING_INDEX = 40
 END_SEARCHING_INDEX = -40
 PROBABILTY_THRESHOLD = 0.10
 
 def aligner(audio_file, text: list[str], output_repo, start_search_index=START_SEARCHING_INDEX):
-    create_folder("output")
+    
     text0 = read_docx(text[0])
     text1 = read_docx(text[1])
     text2 = read_docx(text[2]) 
     audio_data = convert_audio(audio_file)  # Ensure audio is in the correct format
     model = get_model()   
-    text, probability_list = search_starting(model, audio_data, [text0, text1, text2], start_search_index)
+    start_text, probability_list = search_starting(model, audio_data, [text0, text1, text2], start_search_index)
     
-    cut_from_end = 0
+    cut_from_start = 0
+    full_text = start_text
+    logger.info(f"length of text after searching for start {len(full_text.split())} words")     
     if text2 != "":
-        cut_from_end = search_end(probability_list, text)    
-        words = text.split()
-        full_text = ' '.join(words[:cut_from_end + 1])
-    else:
-        full_text = text
+        while len(full_text.split()) >  START_SEARCHING_INDEX:        
+            cut_from_start = search_end(probability_list, full_text)
+            logger.info(f"search end returned {cut_from_start} words from the start")       
+            words = full_text.split()
+            full_text = ' '.join(words[:cut_from_start + 1]) 
+            response, captured_warnings = audio_to_text_aligner(model, audio_data, full_text)
+            probability_list = response.ori_dict["segments"][0]["words"]  
+            check_cut_from_start = search_end(probability_list, full_text) 
+            logger.info(f"search end check returned {check_cut_from_start} words from the start")                  
+            words = full_text.split()
+            full_text = ' '.join(words[:check_cut_from_start + 1])
+            probability_list = probability_list[:check_cut_from_start + 1]
+            if check_cut_from_start == cut_from_start:
+                cut_from_start = check_cut_from_start
+                break
+            cut_from_start = check_cut_from_start
+            
+        
     
-    response, captured_warnings = audio_to_text_aligner(model, audio_data, full_text)
+    logger.info(f"search end final cut_from_start {cut_from_start} words from the start")     
+    response, captured_warnings = audio_to_text_aligner(model, audio_data, full_text, True)
     logger.info(captured_warnings)
     #logger.info(f"Final word alignement")
     #logger.info(format_rtl(full_text))
@@ -49,6 +68,7 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
     result_probability_list = add_probabilties_to_srt(output_file, response.ori_dict["segments"][0]["words"])
     w = weighted_run_score(result_probability_list)
     print(f"weighted_run_score: w = {w}")
+    cut_from_end = len(start_text.split()) - cut_from_start - 1
     return cut_from_end
     
 
@@ -58,19 +78,23 @@ def search_starting(model, audio_file, text: list[str], words_count = START_SEAR
     clean_text0 = remove_marks_for_aligner(text[0])
     clean_text1 = remove_marks_for_aligner(text[1])
     clean_text2 = remove_marks_for_aligner(text[2])
+
+    clean_text0 = remove_parantheses(clean_text0)
+    clean_text1 = remove_parantheses(clean_text1)
+    clean_text2 = remove_parantheses(clean_text2)
     if clean_text2 == "":   #last page
         combined_text = clean_text1
     else:
         combined_text = combine_end_text(clean_text1, clean_text2, START_SEARCHING_INDEX)
     
     if clean_text0 == "": #first page
-        response, captured_warnings = audio_to_text_aligner(model, audio_file, combined_text, "output")
+        response, captured_warnings = audio_to_text_aligner(model, audio_file, combined_text)
         return combined_text, response.ori_dict["segments"][0]["words"]     
     
     while words_count >= END_SEARCHING_INDEX: 
         logger.info(f"Aligning backword with {words_count} words from last page")   
         text_search = combine_start_text(clean_text0, combined_text, words_count)     
-        response, captured_warnings = audio_to_text_aligner(model, audio_file, text_search, "output")
+        response, captured_warnings = audio_to_text_aligner(model, audio_file, text_search)
 
         found = False
         word_counter_checker = 5
@@ -124,7 +148,7 @@ def check_following_words(response):
         return False
     
 def check_preceding_words(probability_list, index):
-    word_counter_checker = 11
+    word_counter_checker = 10
     i = index
     end = index - word_counter_checker
     counter = 0
@@ -137,3 +161,4 @@ def check_preceding_words(probability_list, index):
         return True
     else:
         return False    
+    

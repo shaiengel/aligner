@@ -7,6 +7,9 @@ from pathlib import Path
 import logging
 from html.parser import HTMLParser
 from align.services.docx_util import remove_nikud, read_docx
+from align.services.logger import get_logger
+
+logger = get_logger()
 
 def normalize_spaces(text):
     return re.sub(r'\s+', ' ', text).strip()
@@ -56,7 +59,7 @@ massechets = [
     #{'name': 'Temurah', 'end': '34', 'end_amud': '1'},
     #{'name': 'Keritot', 'end': '28', 'end_amud': '2'},
     #{'name': 'Meilah', 'end': '22', 'end_amud': '1'},
-    {'name': 'Tamid', 'end': '33', 'end_amud': '2', 'start': '25', 'start_amud': '2'},    
+    #{'name': 'Tamid', 'end': '33', 'end_amud': '2', 'start': '25', 'start_amud': '2'},    
     #{'name': 'Niddah', 'end': '73', 'end_amud': '1'}    
 ]
 
@@ -148,6 +151,7 @@ def read_masechet(name, end, end_amud):
 
 def main():
     create_folder("repo")
+    logger.info("Creating repository folder...")
     
     for masechet in massechets:
         #text = read_amud(masechet['name'], 25, 2)
