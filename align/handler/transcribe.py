@@ -13,6 +13,10 @@ import numpy as np
 
 import warnings
 
+from align.services.logger import get_logger
+
+logger = get_logger()
+
 def get_model():
     model = stable_whisper.load_model('base', device='cuda')    
     return model
@@ -28,16 +32,15 @@ def audio_to_text_aligner(model, audio_data, text, vad=False):
     def warning_collector(message, category, filename, lineno, file=None, line=None):
         captured_warnings.append(str(message))
     
-    #original_showwarning = warnings.showwarning
-    #warnings.showwarning = warning_collector
+    original_showwarning = warnings.showwarning
+    warnings.showwarning = warning_collector
     
-    result = model.align(audio_data, text, language='he', vad=vad)  # Use VAD if needed
-    
-    
+    result = model.align(audio_data, text, language='he', vad=vad)  # Use VAD if needed 
 
-    #warnings.showwarning = original_showwarning    
-    
-    
+    warnings.showwarning = original_showwarning 
+
+    for warning in captured_warnings:
+        logger.warning(f"{warning}")
 
     return result, captured_warnings
 

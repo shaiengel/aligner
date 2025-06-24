@@ -66,7 +66,7 @@ def get_logger():
     global logger
     if logger is None:
         pid = os.getpid()
-        worker_logger_name = f"message_service_{pid}.log"
+        worker_logger_name = f"message_service.log"
         logger = init_logger(worker_logger_name)
 
     return logger        

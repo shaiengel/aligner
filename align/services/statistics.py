@@ -2,10 +2,11 @@
 import re
 from align.services.logger import init_logger, format_rtl
 from align.services.logger import get_logger
+from pathlib import Path
 
 logger = get_logger()
 
-def add_probabilties_to_srt(srt_file, words_with_probs):
+def add_probabilties_to_srt(srt_file, words_with_probs, srt_statistics_repo):
     low_confidence_counter = 0
     # Read SRT file
     with open(srt_file, 'r', encoding='utf-8-sig') as f:
@@ -61,7 +62,9 @@ def add_probabilties_to_srt(srt_file, words_with_probs):
 
     logger.info(f"Low confidence words count: {low_confidence_counter}/{len(entries)}")
     # Write output file
-    with open(f'{srt_file}.txt', 'w', encoding='utf-8-sig') as f:
+    filename = Path(srt_file).stem   
+    output_file = Path(srt_statistics_repo) / f'{filename}.srt'  
+    with open(output_file, 'w', encoding='utf-8-sig') as f:
         f.write('\n'.join(output_lines))  
 
     return result_probability_list     
