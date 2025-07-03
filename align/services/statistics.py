@@ -3,6 +3,7 @@ import re
 from align.services.logger import init_logger, format_rtl
 from align.services.logger import get_logger
 from pathlib import Path
+from align.services.utils import format_time
 
 logger = get_logger()
 
@@ -46,6 +47,14 @@ def add_probabilties_to_srt(srt_file, words_with_probs, srt_statistics_repo):
             probs.reverse()
             output_lines.append(str(probs))
             result_probability_list.append(probs)
+
+            #time_ranges = [(round(float(w['start']), 3), round(float(w['end']), 3)) for w in matched_words]
+            time_ranges = [
+                (format_time(float(w['start'])), format_time(float(w['end'])))
+                for w in matched_words
+            ]
+            time_ranges.reverse()  # Reverse to match reversed probs
+            output_lines.append(str(time_ranges))
 
             low_conf_count = sum(1 for p in probs if p < 0.1)
             if low_conf_count > 2:

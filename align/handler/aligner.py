@@ -3,8 +3,9 @@ from align.handler.transcribe import (audio_to_text,
                                       audio_to_text_ivirit, 
                                       audio_to_text_aligner,
                                       write_to_srt,
-                                      get_model,
-                                      convert_audio
+                                      get_model,                                      
+                                      convert_audio,
+                                      find_silence
             )
 from align.services.logger import init_logger, format_rtl
 from align.services.docx_util import (
@@ -32,7 +33,7 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
     
     text0 = read_docx(text[0])
     text1 = read_docx(text[1])
-    text2 = read_docx(text[2]) 
+    text2 = read_docx(text[2])     
     audio_data = convert_audio(audio_file)  # Ensure audio is in the correct format
     model = get_model()   
     start_text, probability_list = search_starting(model, audio_data, [text0, text1, text2], start_search_index)
@@ -64,7 +65,7 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
             
         
     
-    logger.info(f"search end final cut_from_start {cut_from_start} words from the start")     
+    logger.info(f"search end final cut_from_start {cut_from_start} words from the start") 
     response, _ = audio_to_text_aligner(model, audio_data, full_text, True)
     output_file = write_to_srt(response, audio_file, output_repo) 
     srt_statistics_repo = f"{output_repo}\\srt_statistics"
@@ -74,6 +75,10 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
     logger.info(f"weighted_run_score: w = {w}")
     if w > 0.25:
         logger.warning(f"WARNING weighted_run_score is {w}. Check the audio quality or the text alignment.")
+
+    silence_folder = f"{output_repo}\\silences"
+    create_folder(silence_folder)
+    find_silence(audio_file, f"{output_file}.silences", silence_folder)       
     cut_from_end = len(start_text.split()) - cut_from_start - 1
     return cut_from_end
     

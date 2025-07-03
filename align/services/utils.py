@@ -41,4 +41,13 @@ def format_text(text):
     # Remove any double spaces
     text = re.sub(r'\s+', ' ', text)
     
-    return text.strip()        
+    return text.strip()     
+
+
+def format_time(seconds: float) -> str:
+    total_millis = int(round(seconds * 1000))
+    hours = total_millis // 3600000
+    minutes = (total_millis % 3600000) // 60000
+    seconds_part = (total_millis % 60000) // 1000
+    millis = total_millis % 1000
+    return f"{hours:02}:{minutes:02}:{seconds_part:02}.{millis:03}"

@@ -10,6 +10,7 @@ from faster_whisper import WhisperModel
 
 import librosa
 import numpy as np
+import os
 
 import warnings
 
@@ -159,7 +160,7 @@ def audio_to_transcribe_fast(audio_file):
 
     
 
-def find_silence(audio_file):
+def find_silence(audio_file, output_file=None, output_folder=None):
     # Load the MP3 (sample rate doesn't matter here)
     audio = AudioSegment.from_mp3(audio_file)
 
@@ -167,8 +168,34 @@ def find_silence(audio_file):
     #audio = audio.set_channels(1).set_frame_rate(16000)
 
     # Detect silence
-    silences = silence.detect_silence(audio, min_silence_len=400, silence_thresh=-40)
+    silences = silence.detect_silence(audio, min_silence_len=250, silence_thresh=-40)
 
     # Convert to seconds
     silence_segments = [(start / 1000, end / 1000) for start, end in silences]  
-    print("Silence segments (in seconds):", silence_segments)  
+    #print("Silence segments (in seconds):", silence_segments)
+    if output_file:
+        filename = Path(output_file).name   
+        output_file = Path(output_folder) / f'{filename}'  
+        with open(output_file, 'w') as f:
+            f.write(str(silence_segments))  # Save silence segments to a file
+    return silence_segments  
+
+
+def create_silences_file(audio_folder, output_folder):
+    for filename in os.listdir(audio_folder):
+        if filename.lower().endswith(".mp3"):
+            file_path = os.path.join(audio_folder, filename)
+            try:
+                print(f"Processing {filename} for silences...")
+                silences = find_silence(file_path)
+                string_data = str(silences)
+                base_name = os.path.splitext(filename)[0]
+                output_filename = f"{base_name}.srt.silences"
+                output_path = os.path.join(output_folder, output_filename)
+                
+                # Write silences to file
+                with open(output_path, "w") as f:
+                    f.write(string_data)  
+                
+            except Exception as e:
+                print(f"Error processing {filename}: {e}")
