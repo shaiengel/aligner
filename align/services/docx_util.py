@@ -32,7 +32,7 @@ def remove_marks_for_aligner(text):
                          
     return clean_text
 
-def read_docx(file_path):
+def read_docx(file_path, nikud=False):
     if file_path == "":
         return ""
     doc = Document(file_path)
@@ -59,7 +59,8 @@ def read_docx(file_path):
             text = text[:-1]
 
         # Clean Hebrew text
-        text = remove_nikud(text)            
+        if not nikud:
+            text = remove_nikud(text)            
 
         full_text.append(text)
 

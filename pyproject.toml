@@ -31,6 +31,8 @@ python-bidi = "^0.6.6"
 ctranslate2 = {version = "4.4.0", extras = ["gpu"]}
 faster-whisper = "^1.1.1"
 matplotlib = "^3.10.3"
+audiosample = "^2.2.10"
+datasets = "^3.6.0"
 
 [build-system]
 requires = ["poetry-core"]

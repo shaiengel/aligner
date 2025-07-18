@@ -22,6 +22,7 @@ import re
 
 from align.services.logger import get_logger
 import json
+from pathlib import Path
 
 logger = get_logger()
 
@@ -36,7 +37,7 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
     text2 = read_docx(text[2])     
     audio_data = convert_audio(audio_file)  # Ensure audio is in the correct format
     model = get_model()   
-    start_text, probability_list = search_starting(model, audio_data, [text0, text1, text2], start_search_index)
+    start_text, probability_list, final_start_index = search_starting(model, audio_data, [text0, text1, text2], start_search_index)
     
     if start_text is None:
         logger.error(f"Failed to find a suitable starting point in the text for audio file {audio_file}.")
@@ -78,7 +79,10 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
 
     silence_folder = f"{output_repo}\\silences"
     create_folder(silence_folder)
-    find_silence(audio_file, f"{output_file}.silences", silence_folder)       
+    find_silence(audio_file, f"{output_file}.silences", silence_folder)
+    metadata_folder = f"{output_repo}\\metadata"
+    create_folder(metadata_folder)
+    write_metadata(audio_file, f"{output_file}", final_start_index, cut_from_start)
     cut_from_end = len(start_text.split()) - cut_from_start - 1
     return cut_from_end
     
@@ -100,7 +104,7 @@ def search_starting(model, audio_file, text: list[str], words_count = START_SEAR
     
     if clean_text0 == "": #first page
         response, _ = audio_to_text_aligner(model, audio_file, combined_text)
-        return combined_text, response.ori_dict["segments"][0]["words"]     
+        return combined_text, response.ori_dict["segments"][0]["words"], 0     
     
     saved_warnings = []
     while words_count >= END_SEARCHING_INDEX: 
@@ -129,7 +133,7 @@ def search_starting(model, audio_file, text: list[str], words_count = START_SEAR
         if found:
             logger.info(f"Final word alignement")
             logger.info(f"found aligning backword with {words_count} words from last page")               
-            return text_search, response.ori_dict["segments"][0]["words"]     
+            return text_search, response.ori_dict["segments"][0]["words"], words_count     
         words_count -= word_counter_checker 
 
     logger.info(f"try to search for the best matching")
@@ -137,7 +141,7 @@ def search_starting(model, audio_file, text: list[str], words_count = START_SEAR
     logger.info(f"found best matching with {words_count} words")
     text_search = combine_start_text(clean_text0, combined_text, words_count)     
     response, _ = audio_to_text_aligner(model, audio_file, text_search)
-    return text_search, response.ori_dict["segments"][0]["words"]     
+    return text_search, response.ori_dict["segments"][0]["words"], words_count     
 
 def search_end(probability_list, text: list[str]):
     i = len(probability_list) - 1    
@@ -272,3 +276,13 @@ def find_best_matching(saved_warnings):
         return None  
     
     
+def write_metadata(output_folder, output_file, final_start_index, cut_from_start):
+    if output_file:
+        filename = Path(output_file).stem   
+        output_file = Path(output_folder) / f'{filename}.metadata.json'
+        data = {
+            "final_start_index": final_start_index,
+            "cut_from_start": cut_from_start
+        }  
+        with open(output_file, 'w') as f:
+            f.write(json.dumps(data))  # Save silence segments to a file

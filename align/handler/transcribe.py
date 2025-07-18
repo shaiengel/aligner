@@ -1,5 +1,6 @@
 
 import stable_whisper
+from stable_whisper.audio import AudioLoader
 import datetime
 from pydub import AudioSegment, silence
 from pathlib import Path
@@ -11,21 +12,34 @@ from faster_whisper import WhisperModel
 import librosa
 import numpy as np
 import os
-
 import warnings
 
 from align.services.logger import get_logger
 
 logger = get_logger()
 
+WHISPER_EXPECTED_SAMPLE_RATE = 16000
+
 def get_model():
     model = stable_whisper.load_model('base', device='cuda')    
     return model
 
 def convert_audio(audio_file):
-    audio_data, sr = librosa.load(audio_file, sr=16000, mono=True)
+    audio_data, sr = librosa.load(audio_file, sr=WHISPER_EXPECTED_SAMPLE_RATE, mono=True)
     audio_data = audio_data.astype(np.float32)
     return audio_data
+    
+           
+
+def load_audio(audio_file, slice_length=30):    
+
+    audio_loader = AudioLoader(
+                    str(audio_file),
+                    stream=False,
+                    sr=WHISPER_EXPECTED_SAMPLE_RATE,
+                    buffer_size=int(3 * slice_length * WHISPER_EXPECTED_SAMPLE_RATE),
+                )
+    return audio_loader
 
 
 def audio_to_text_aligner(model, audio_data, text, vad=False):

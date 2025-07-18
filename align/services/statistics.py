@@ -102,3 +102,26 @@ def weighted_run_score(y):
         runs.append(current_run)
     
     return sum(r**2 for r in runs) / len(y) if runs else 0         
+
+def slices_statistics(slices, audio_duration):
+    counter = 0
+    sum_duration = 0
+    for segment in slices:
+        if len(segment["segments"]) != 0:
+            counter += 1
+            end_time = segment["segments"][-1].get("end")
+            # Fallback to second-last if missing or None
+            if end_time is None:
+                if len(segment) > 1:
+                    duration = segment["segments"][-2]["end"] - segment["segments"][0]["start"]
+                else:
+                    duration = segment["segments"][0]["end"] - segment["segments"][0]["start"]
+            else:
+                if len(segment) > 1:
+                    duration = segment["segments"][-1]["end"] - segment["segments"][0]["start"]
+                else:
+                    duration = segment["segments"][0]["end"] - segment["segments"][0]["start"]
+                
+            sum_duration += duration
+    print(f"Total slices after cleaning: {counter}/{len(slices)}, total duration: {sum_duration}/{audio_duration} seconds")
+    return sum_duration
