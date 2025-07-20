@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 import uuid
 from align.services.statistics import slices_statistics
+from align.services.utils import get_directory_size
 from tqdm import tqdm
 from stable_whisper.result import WhisperResult, Segment
 from stable_whisper.audio import AudioLoader
@@ -18,6 +19,9 @@ from datasets import (
     Features,
 )
 from huggingface_hub import DatasetCard, DatasetCardData, upload_file
+
+from dotenv import load_dotenv
+load_dotenv()
 
 
 logger = logging.getLogger(__name__)
@@ -513,7 +517,7 @@ def prepare_training_dataset(
             # Create slices of the captions with the intended slice
             slices = generate_slices(segments, audio_duration, slice_length, per_segment_quality_threshold)
             slices = merge_slice_segments(slices)
-            slices_statistics(slices, audio_duration)
+            slices_duration = slices_statistics(slices, audio_duration)
 
             # Collect all examples from this file
             examples = []
@@ -544,7 +548,7 @@ def prepare_training_dataset(
     #    "audio", AudioColumnType(sampling_rate=WHISPER_EXPECTED_SAMPLE_RATE)
     #)
 
-    return file_dataset
+    return file_dataset, slices_duration, audio_duration
 
 
 def concatenate_all_datasets(datasets: list[Dataset]) -> Dataset:
@@ -558,7 +562,11 @@ def concatenate_all_datasets(datasets: list[Dataset]) -> Dataset:
     concatenated_dataset = concatenate_datasets(datasets)
     concatenated_dataset = concatenated_dataset.cast_column(
         "audio", AudioColumnType(sampling_rate=WHISPER_EXPECTED_SAMPLE_RATE)
-    )    
+    )
+
+    concatenated_dataset.save_to_disk("tmp_dataset1")
+    size_in_bytes = get_directory_size("tmp_dataset1")    
+    print(f"Dataset size: {size_in_bytes / (1024 * 1024):.2f} MB")    
     return concatenated_dataset
 
 def split_dataset(dataset: Dataset, test_split_size: float = 0.05) -> DatasetDict:
@@ -566,7 +574,7 @@ def split_dataset(dataset: Dataset, test_split_size: float = 0.05) -> DatasetDic
     output_dataset = DatasetDict({"train": temp["train"], "eval": temp["test"]})
     return output_dataset
 
-def save_dataset(dataset: DatasetDict, card: DatasetCard, output_dataset_name: str = "shaiengel/daf-yomi-talmud-whisper-training"):
+def save_dataset(dataset: DatasetDict, card: DatasetCard, output_dataset_name: str):
     dataset.save_to_disk(output_dataset_name)
     card.save(f"{output_dataset_name}/README.md")
 
@@ -576,9 +584,9 @@ def save_dataset(dataset: DatasetDict, card: DatasetCard, output_dataset_name: s
         else:
             logger.info(f"Dataset created with {dataset.num_rows} samples")
 
-def upload_dataset_to_hub(dataset: DatasetDict, card: DatasetCard, output_dataset_name: str = "shaiengel/daf-yomi-talmud-whisper-training"):  
+def upload_dataset_to_hub(dataset: DatasetDict, card: DatasetCard, output_dataset_name: str):  
     dataset.push_to_hub(repo_id=output_dataset_name, private=None, max_shard_size="500MB")   
-    card.push_to_hub(repo_id=output_dataset_name, repo_type="dataset")       
+    #card.push_to_hub(repo_id=output_dataset_name, repo_type="dataset")       
 
     
 def create_dataset_card() -> DatasetCard:
@@ -587,9 +595,9 @@ def create_dataset_card() -> DatasetCard:
     """
     card_data = DatasetCardData(
                 language="he",
-                license="portal-daf-yomi",
-                language_creators="Shai Engel",
-                dataset_description="This dataset contains audio recordings of the Gmara",
+                license="cc-by-4.0",
+                language_creators=["Shai Engel"],
+                dataset_description="This dataset contains audio citing of the Gmara",
                 pretty_name="Citing of the Gmara",
             )
     dataset_card = DatasetCard.from_template(card_data, template_path="assets/ivritai_dataset_card_template.md")

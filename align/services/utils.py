@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 import re
 from align.services.logger import get_logger
+import os
 
 logger = get_logger()
 
@@ -51,3 +52,12 @@ def format_time(seconds: float) -> str:
     seconds_part = (total_millis % 60000) // 1000
     millis = total_millis % 1000
     return f"{hours:02}:{minutes:02}:{seconds_part:02}.{millis:03}"
+
+
+def get_directory_size(path):
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total += os.path.getsize(fp)
+    return total

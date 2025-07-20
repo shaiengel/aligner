@@ -1,6 +1,7 @@
 from datetime import datetime
 import re
 import os
+import uuid
 from align.services.create_dataset import (
     generate_slices,
     prepare_training_dataset,
@@ -15,6 +16,7 @@ from align.services.silence_segment_analyzer import read_silence_segments, decid
 from align.handler.transcribe import load_audio
 from align.services.logger import get_logger
 from align.services.statistics import slices_statistics
+from pathlib import Path
 
 logger = get_logger()
 
@@ -43,7 +45,7 @@ def prepare_data_from_srt(file_path):
 
     blocks = re.split(r'\n\s*\n', content.strip())
     entries = []
-    segments = []
+    
 
     for block in blocks:
         lines = block.strip().split('\n')
@@ -174,12 +176,13 @@ def clean_segments(segments, entries):
             not is_distribution_dense_enough(new_entries[i]) or
             not is_word_max_duration_ok(new_entries[i])
         ):
-            print(f"Bad segment at index {i}: {segment.text}")
+            #print(f"Bad segment at index {i}: {segment.text}")
             counter += 1
             for word in segment.words:
                 word.probability = PROBABILITY_THRESHOLD-0.01  # Set low probability for words in bad segments
-        else:
-            new_segments.append(segment)        
+        #else:
+        #    new_segments.append(segment)
+        new_segments.append(segment)         
     
     print(f"Total bad segments: {counter}")   
        
@@ -220,23 +223,38 @@ def prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_t
     number_of_files = len(audio_files)
     index = start_search_page  
     all_datasets = []  
-    while index < number_of_files + start_page:            
+    sum_slice_duration = 0
+    sum_audio_duration = 0
+    while index <= number_of_files:            
         audio_file = f"{audio_repo}\\{audio_file_template.format(index)}"  
         srt_file = f"{doc_repo}\\{doc_file_template.format(index)}" 
+        logger.info(f"preparing data for {audio_file} and {srt_file}")     
         entries = prepare_data_from_srt(srt_file)
         segments = reconstruct_segments_from_entries(entries)
         segments = clean_segments(segments, entries) 
         metadata ={
-            "source_id": f"{doc_file_template.format(index)}"        
-        }     
-        file_dataset = prepare_training_dataset(slice_length=30, segments=segments, audio_file=audio_file, per_segment_quality_threshold=PROBABILITY_THRESHOLD, metadata=metadata)
+            "source_id": f"{doc_file_template.format(index)}",
+            "source_entry_id": f"{uuid.uuid5(uuid.NAMESPACE_DNS, doc_file_template.format(index))}",        
+        }            
+        file_dataset, slices_duration, audio_duration = prepare_training_dataset(slice_length=30, segments=segments, audio_file=audio_file, per_segment_quality_threshold=PROBABILITY_THRESHOLD, metadata=metadata)
+        sum_slice_duration += slices_duration
+        sum_audio_duration += audio_duration
+        
         all_datasets.append(file_dataset)
         
         index += 1
-    return all_datasets          
+    massechet = audio_repo.split('\\')[-1]         
+    logger.info(
+        f"Total slices duration for {massechet} {(sum_slice_duration/sum_audio_duration)*100:.2f}%: "
+        f"{sum_slice_duration:.2f}/{sum_audio_duration:.2f} seconds, "
+        f"{sum_slice_duration/3600:.2f}/{sum_audio_duration/3600:.2f} hours"
+    )
+    return all_datasets, sum_slice_duration, sum_audio_duration         
 
 def prepare_data_repo(respos_dict):
     all_datasets = [] 
+    sum_slice_duration = 0
+    sum_audio_duration = 0
     for item in respos_dict:
         audio_repo = item['audio_repo']
         audio_file_template = item['audio_file_template']
@@ -246,19 +264,27 @@ def prepare_data_repo(respos_dict):
         
         massechet = audio_repo.split('\\')[-1]           
         logger.info(f"Start prepare_data massechet = {massechet}")
-        massechet_dataset = prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, start_page)
+        massechet_dataset, slices_duration, audio_duration = prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, start_page)
+        sum_slice_duration += slices_duration
+        sum_audio_duration += audio_duration
         
         all_datasets.extend(massechet_dataset)
         logger.info(f"Finished prepare_data massechet = {massechet}")
 
-    output_dataset = concatenate_all_datasets(all_datasets)    
-
-    output_dataset.info.dataset_name = "gmara_citing"
-    output_dataset.info.version = "1.0.0"
+    logger.info(f"Total slices duration: {sum_slice_duration}/{sum_audio_duration}")
+    output_dataset = concatenate_all_datasets(all_datasets)
+    output_split_dataset = split_dataset(output_dataset, 0.05)
 
     dataset_card = create_dataset_card()
-    dataset_split = split_dataset(output_dataset, 0.05)
-    upload_dataset_to_hub(dataset_split, dataset_card, "shaiengel/daf-yomi-talmud-whisper-training")        
+    upload_dataset_to_hub(output_split_dataset, dataset_card, "portal-daf-yomi/daf-yomi-talmud-whisper-training")
+
+
+    # output_dataset.info.dataset_name = "gmara_citing"
+    # output_dataset.info.version = "1.0.0"
+
+    # dataset_card = create_dataset_card()
+    # dataset_split = split_dataset(output_dataset, 0.05)
+    # upload_dataset_to_hub(dataset_split, dataset_card, "shaiengel/daf-yomi-talmud-whisper-training")        
     
 
 if __name__ == '__main__': 
@@ -268,20 +294,20 @@ if __name__ == '__main__':
     prepare_data_repo(repos)     
     
     
-    # file = "output_repo\\brachot4\\srt_statistics\\Bsafa_Brura-01_BR-38.srt"
-    # audio_file = "repo_audio\\brachot\Bsafa_Brura-01_BR-38.mp3"
-    # silence_file = "output_repo\\brachot4\\silences\\Bsafa_Brura-01_BR-38.srt.silences"
+    # file = "output_repo\\brachot\\srt_statistics\\Bsafa_Brura-01_BR-35.srt"
+    # audio_file = "repo_audio\\brachot\Bsafa_Brura-01_BR-35.mp3"
+    # silence_file = "output_repo\\brachot\\silences\\Bsafa_Brura-01_BR-35.srt.silences"
     # entries = prepare_data_from_srt(file)
     # segments = reconstruct_segments_from_entries(entries)
     # segments = clean_segments(segments, entries)
-    #audio_loader = load_audio(audio_file, slice_length=30)
-    #slices = generate_slices(segments, audio_loader.get_duration(), slice_length=30, per_segment_quality_threshold=PROBABILITY_THRESHOLD)
-    #slices_statistics(slices, audio_loader.get_duration())
+    # audio_loader = load_audio(audio_file, slice_length=30)
+    # slices = generate_slices(segments, audio_loader.get_duration(), slice_length=30, per_segment_quality_threshold=PROBABILITY_THRESHOLD)
+    # slices_statistics(slices, audio_loader.get_duration())
     # metadata ={
     #     "source_id": "Bsafa_Brura-01_BR-38"        
     # }
     # all_datasets = [] 
-    # file_dataset = prepare_training_dataset(slice_length=30, segments=segments, audio_file=audio_file, per_segment_quality_threshold=PROBABILITY_THRESHOLD, metadata=metadata)
+    # file_dataset, slices_duration, audio_duration = prepare_training_dataset(slice_length=30, segments=segments, audio_file=audio_file, per_segment_quality_threshold=PROBABILITY_THRESHOLD, metadata=metadata)
     # all_datasets.append(file_dataset)    
     # output_dataset = concatenate_all_datasets(all_datasets)
     # print(output_dataset)
