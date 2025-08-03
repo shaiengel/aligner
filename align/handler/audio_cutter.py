@@ -1,5 +1,6 @@
 import os
 from pydub import AudioSegment
+from pydub.generators import WhiteNoise
 import re
 from align.services.utils import create_folder
 from pathlib import Path
@@ -57,6 +58,51 @@ def cut_audio_segments(audio_file, srt_file, output_folder):
                     text_file.write(text)
 
                 print(f"Exported {output_audio_path} and {output_text_path}")
+
+def convert_mp3_to_wav(mp3_file: str, wav_file: str, output_repo, target_sample_rate: int = 16000):
+    audio = AudioSegment.from_mp3(mp3_file).set_channels(1).set_frame_rate(target_sample_rate)
+    file_name = Path(wav_file).name
+    output_file = Path(output_repo) / file_name
+    audio.export(output_file, format="wav")
+    print(f"Converted {mp3_file} to {wav_file} at {target_sample_rate} Hz")
+    return output_file
+
+
+def generate_white_noise(duration_ms: int, sample_rate: int = 16000, volume_db: float = -50.0) -> AudioSegment:
+    noise = WhiteNoise().to_audio_segment(duration=duration_ms, volume=volume_db).set_frame_rate(sample_rate).set_channels(1)
+    print(f"Generated white noise: {duration_ms} ms at {volume_db} dB and {sample_rate} Hz")
+    return noise
+
+
+def apply_noise_to_intervals(wav_file: str, noise: AudioSegment, intervals: list[tuple[int, int]]):
+    audio = AudioSegment.from_wav(wav_file).set_channels(1).set_frame_rate(16000)
+    sample_rate = audio.frame_rate
+    duration_ms = len(audio)
+
+    # Prepare silent noise track
+    masked_noise = AudioSegment.silent(duration=duration_ms, frame_rate=sample_rate).set_channels(1)
+
+    for start_ms, end_ms in intervals:
+        start_ms = max(0, start_ms)
+        end_ms = min(duration_ms, end_ms)
+        noise_slice = noise[start_ms:end_ms]
+        masked_noise = masked_noise.overlay(noise_slice, position=start_ms)
+
+    # Mute the original audio in those intervals
+    for start_ms, end_ms in intervals:
+        audio = audio[:start_ms] + AudioSegment.silent(duration=(end_ms - start_ms), frame_rate=sample_rate) + audio[end_ms:]
+
+    # Overlay noise on muted audio
+    output = audio.overlay(masked_noise)
+
+    # Export at 16kHz WAV
+    output.set_frame_rate(16000).export(wav_file, format="wav")
+    print(f"apply_noise_to_intervals to {wav_file}")
+
+def remove_audio_from_interval(wav_file: str, start_ms: int, end_ms: int) -> AudioSegment:
+    white_noise = generate_white_noise(end_ms - start_ms)
+    apply_noise_to_intervals(wav_file, white_noise, [(start_ms, end_ms)])    
+
 
 if __name__ == '__main__':
     file = "output_repo\\brachot4\\fixed_srt\\Bsafa_Brura-01_BR-38.srt"

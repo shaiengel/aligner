@@ -23,6 +23,8 @@ from huggingface_hub import DatasetCard, DatasetCardData, upload_file
 from dotenv import load_dotenv
 load_dotenv()
 
+PROBABILITY_THRESHOLD = 0.10
+ALLOWED_ERROR_PERCENTAGE = 0.416
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -120,6 +122,38 @@ def get_segment_word_scores(segment: Segment) -> list[float]:
         if hasattr(word, "probability"):
             word_scores.append(word.probability)
     return word_scores
+
+def is_distribution_dense_enough(segment, threshold=PROBABILITY_THRESHOLD, max_fraction=ALLOWED_ERROR_PERCENTAGE):
+    probs = segment['word_scores']
+    if not probs:
+        return False
+    low_count = sum(1 for p in probs if p < threshold)
+    low_probaility_density = low_count / len(probs)
+    if low_probaility_density >= max_fraction:
+        return False
+    return True
+
+
+def calculate_segments_in_slice(slice):
+    """
+    Calculate the number of segments in a slice.
+    This is a helper function to calculate the number of segments in a slice.
+    """
+    if not slice or not slice.get("segments"):
+        return 0, 0
+
+    # Count the number of segments and missing segments
+    num_segments = 0
+    bad_segments = 0
+    for segment in slice["segments"]:
+        if segment.keys() == {'start'}:
+            continue
+        num_segments += 1
+        if not is_distribution_dense_enough(segment):
+            bad_segments += 1
+           
+
+    return num_segments, bad_segments
 
 
 def calculate_median_quality_score(scores: list[float]) -> float:
@@ -304,6 +338,46 @@ def generate_slices(
 
     return slices
 
+def remove_slices_with_bad_segments(slices: list[dict]) -> list[dict]:
+    if not slices:
+        return slices
+
+    result_slices = []
+    
+    for slice in slices:
+        bad_segment = False
+        segments = slice.get("segments", [])
+        for segment in segments:
+            if segment.keys() == {'start'}:
+                continue
+            if not is_distribution_dense_enough(segment):
+                # Skip this slice as it contains a segment with low quality
+                bad_segment = True
+                break
+        if not bad_segment:           
+            result_slices.append(slice)
+    return result_slices       
+
+def find_gold_slices(slices: list[dict]):
+    if not slices:
+        return slices    
+    
+    for slice in slices:
+        bad_segment = False
+        segments = slice.get("segments", [])
+        for segment in segments:
+            if segment.keys() == {'start'}:
+                continue
+            if not is_distribution_dense_enough(segment):
+                # Skip this slice as it contains a segment with low quality
+                bad_segment = True
+                break
+        if not bad_segment:
+            slice["golden_segments"]= True  
+        else:
+            slice["golden_segments"] = False
+
+
 
 def merge_slice_segments(slices: list[dict], merge_below_gap_threshold: float = 0.3) -> list[dict]:
     """
@@ -363,6 +437,7 @@ def merge_slice_segments(slices: list[dict], merge_below_gap_threshold: float = 
                 # Merge current segment into previous segment
                 prev_segment["end"] = current_segment["end"]
                 prev_segment["text"] = prev_segment["text"] + current_segment["text"]
+                prev_segment["word_scores"] = prev_segment["word_scores"] + current_segment["word_scores"]
 
                 # Remove the current segment as it's now merged
                 result_segments.pop(i)
@@ -409,6 +484,7 @@ def generate_examples_from_slices(
 ) -> Iterator[dict]:
     source_id = metadata.get("source_id", "unknown")
     source_entry_id = metadata.get("source_entry_id", str(uuid.uuid4()))
+    creator = metadata.get("creator", "unknown")
     logger.debug(f"Generating dataset from {source_id}/{source_entry_id}")
 
     # No slices - nothing to do
@@ -432,6 +508,10 @@ def generate_examples_from_slices(
                         slice_text += f'{segment["text"]}{get_timestamp_token_text(segment["end"])}'
                 all_word_scores = [score for segment in slice["segments"] for score in segment.get("word_scores", [])]
                 segments_quality_score = calculate_median_quality_score(all_word_scores)
+                num_segments, bad_segments = calculate_segments_in_slice(slice)
+                is_gold = False
+                if slice["golden_segments"] is True:
+                    is_gold = True
                 slice_audio_data = get_slice_audio_data(audio_loader, slice, slice_length)
                 example = {
                     "audio": {
@@ -445,6 +525,10 @@ def generate_examples_from_slices(
                         "source": source_id,
                         "entry_id": source_entry_id,
                         "quality_score": segments_quality_score,
+                        "creator": creator,
+                        "number_of_segments": num_segments,
+                        "bad_segments": bad_segments,
+                        "golden_segments": is_gold,
                     },
                     "has_prev": False,
                     "has_timestamps": True,
@@ -483,6 +567,7 @@ def prepare_training_dataset(
     """     
 
     # Define dataset features
+    file_dataset = None
     dataset_features = Features(
         {
             "audio": AudioColumnType(),
@@ -493,6 +578,10 @@ def prepare_training_dataset(
                 "source": ValueColumnType(dtype="string"),
                 "entry_id": ValueColumnType(dtype="string"),
                 "quality_score": ValueColumnType(dtype="float32"),
+                "creator": ValueColumnType(dtype="string"),
+                "number_of_segments": ValueColumnType(dtype="int32"),
+                "bad_segments": ValueColumnType(dtype="int32"),
+                "golden_segments": ValueColumnType(dtype="bool"),
             },
             "has_prev": ValueColumnType(dtype="bool"),
             "has_timestamps": ValueColumnType(dtype="bool"),
@@ -515,7 +604,9 @@ def prepare_training_dataset(
             audio_duration = audio_loader.get_duration()
 
             # Create slices of the captions with the intended slice
-            slices = generate_slices(segments, audio_duration, slice_length, per_segment_quality_threshold)
+            slices = generate_slices(segments, audio_duration, slice_length, per_segment_quality_threshold) 
+            #slices = remove_slices_with_bad_segments(slices)  
+            find_gold_slices(slices)         
             slices = merge_slice_segments(slices)
             slices_duration = slices_statistics(slices, audio_duration)
 
@@ -574,9 +665,8 @@ def split_dataset(dataset: Dataset, test_split_size: float = 0.05) -> DatasetDic
     output_dataset = DatasetDict({"train": temp["train"], "eval": temp["test"]})
     return output_dataset
 
-def save_dataset(dataset: DatasetDict, card: DatasetCard, output_dataset_name: str):
-    dataset.save_to_disk(output_dataset_name)
-    card.save(f"{output_dataset_name}/README.md")
+def save_dataset(dataset: DatasetDict, output_dataset_name: str):
+    dataset.save_to_disk(output_dataset_name)    
 
     if isinstance(dataset, DatasetDict):
         for split, ds in dataset.items():
@@ -584,9 +674,11 @@ def save_dataset(dataset: DatasetDict, card: DatasetCard, output_dataset_name: s
         else:
             logger.info(f"Dataset created with {dataset.num_rows} samples")
 
-def upload_dataset_to_hub(dataset: DatasetDict, card: DatasetCard, output_dataset_name: str):  
+def upload_dataset_to_hub(dataset: DatasetDict, output_dataset_name: str):  
     dataset.push_to_hub(repo_id=output_dataset_name, private=None, max_shard_size="500MB")   
-    #card.push_to_hub(repo_id=output_dataset_name, repo_type="dataset")       
+
+def upload_dataset_card_to_hub(card: DatasetCard, output_dataset_name: str):    
+    card.push_to_hub(repo_id=output_dataset_name, repo_type="dataset")       
 
     
 def create_dataset_card() -> DatasetCard:

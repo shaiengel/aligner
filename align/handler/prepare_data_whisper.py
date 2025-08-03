@@ -16,6 +16,8 @@ from align.services.silence_segment_analyzer import read_silence_segments, decid
 from align.handler.transcribe import load_audio
 from align.services.logger import get_logger
 from align.services.statistics import slices_statistics
+from align.handler.audio_cutter import convert_mp3_to_wav, remove_audio_from_interval
+from align.services.utils import create_folder
 from pathlib import Path
 
 logger = get_logger()
@@ -164,12 +166,16 @@ def reconstruct_segments_from_entries(entries):
     
     return segments
 
-def clean_segments(segments, entries):
+def clean_segments(segments, entries, audio):
     counter = 0
     segments = segments[3:]
     new_entries = entries[3:]
     new_segments = []
     for i, segment in enumerate(segments):
+        segment_end = segment.end
+        last_word_end = segment.words[-1].end if segment.words else 0
+        if segment.words and last_word_end < segment_end:
+            remove_audio_from_interval(audio, last_word_end, segment_end)
         if (
             not is_avg_word_duration_ok(new_entries[i]) or
             not is_first_word_probability_ok(new_entries[i]) or
@@ -215,28 +221,35 @@ def is_distribution_dense_enough(entry, threshold=PROBABILITY_THRESHOLD, max_fra
 def is_word_max_duration_ok(entry):
     return entry['max_duration'] < MAX_WORD_DURATION
 
-def prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, start_page, start_search_page=2):
+def prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, creator, start_page=2):
     
     audio_files = os.listdir(audio_repo)
+    wav_folder = Path(audio_repo) / "wav"
+    create_folder(wav_folder)
     
     
     number_of_files = len(audio_files)
-    index = start_search_page  
+    index = start_page  
     all_datasets = []  
     sum_slice_duration = 0
     sum_audio_duration = 0
     while index <= number_of_files:            
         audio_file = f"{audio_repo}\\{audio_file_template.format(index)}"  
         srt_file = f"{doc_repo}\\{doc_file_template.format(index)}" 
-        logger.info(f"preparing data for {audio_file} and {srt_file}")     
+        logger.info(f"preparing data for {audio_file} and {srt_file}")  
+        wav_file = convert_mp3_to_wav(audio_file, audio_file.replace('.mp3', '.wav'), wav_folder)   
         entries = prepare_data_from_srt(srt_file)
         segments = reconstruct_segments_from_entries(entries)
-        segments = clean_segments(segments, entries) 
+        segments = clean_segments(segments, entries, wav_file) 
         metadata ={
             "source_id": f"{doc_file_template.format(index)}",
-            "source_entry_id": f"{uuid.uuid5(uuid.NAMESPACE_DNS, doc_file_template.format(index))}",        
+            "source_entry_id": f"{uuid.uuid5(uuid.NAMESPACE_DNS, doc_file_template.format(index))}",
+            "creator": creator,        
         }            
-        file_dataset, slices_duration, audio_duration = prepare_training_dataset(slice_length=30, segments=segments, audio_file=audio_file, per_segment_quality_threshold=PROBABILITY_THRESHOLD, metadata=metadata)
+        file_dataset, slices_duration, audio_duration = prepare_training_dataset(slice_length=30, segments=segments, audio_file=wav_file, per_segment_quality_threshold=PROBABILITY_THRESHOLD, metadata=metadata)
+        if file_dataset is None:
+            index += 1
+            continue
         sum_slice_duration += slices_duration
         sum_audio_duration += audio_duration
         
@@ -260,11 +273,12 @@ def prepare_data_repo(respos_dict):
         audio_file_template = item['audio_file_template']
         doc_repo = item['doc_repo']
         doc_file_template = item['doc_file_template']
+        creator = item.get('creator', 'unknown')
         start_page = item.get('start_page', 2)        
         
         massechet = audio_repo.split('\\')[-1]           
         logger.info(f"Start prepare_data massechet = {massechet}")
-        massechet_dataset, slices_duration, audio_duration = prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, start_page)
+        massechet_dataset, slices_duration, audio_duration = prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, creator, start_page)
         sum_slice_duration += slices_duration
         sum_audio_duration += audio_duration
         
@@ -274,32 +288,27 @@ def prepare_data_repo(respos_dict):
     logger.info(f"Total slices duration: {sum_slice_duration}/{sum_audio_duration}")
     output_dataset = concatenate_all_datasets(all_datasets)
     output_split_dataset = split_dataset(output_dataset, 0.05)
+    save_dataset(output_split_dataset, "brachot_dataset")
 
-    dataset_card = create_dataset_card()
-    upload_dataset_to_hub(output_split_dataset, dataset_card, "portal-daf-yomi/daf-yomi-talmud-whisper-training")
-
-
-    # output_dataset.info.dataset_name = "gmara_citing"
-    # output_dataset.info.version = "1.0.0"
-
-    # dataset_card = create_dataset_card()
-    # dataset_split = split_dataset(output_dataset, 0.05)
-    # upload_dataset_to_hub(dataset_split, dataset_card, "shaiengel/daf-yomi-talmud-whisper-training")        
+    #dataset_card = create_dataset_card()
+    #upload_dataset_to_hub(output_split_dataset, dataset_card, "portal-daf-yomi/daf-yomi-talmud-whisper-training")   
+    # upload_dataset_card_to_hub(dataset_card, "portal-daf-yomi/daf-yomi-talmud-whisper-training")    
     
 
 if __name__ == '__main__': 
     repos = [
-        {'audio_repo': 'repo_audio\\brachot', 'audio_file_template': 'Bsafa_Brura-01_BR-{}.mp3', 'doc_repo': 'output_repo\\brachot\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-01_BR-{}.srt', 'start_page': 2}
+        {'audio_repo': 'repo_audio\\brachot', 'audio_file_template': 'Bsafa_Brura-01_BR-{}.mp3', 'doc_repo': 'output_repo\\brachot\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-01_BR-{}.srt', 'creator': 'zisman', 'start_page': 2}
     ] 
     prepare_data_repo(repos)     
     
     
-    # file = "output_repo\\brachot\\srt_statistics\\Bsafa_Brura-01_BR-35.srt"
-    # audio_file = "repo_audio\\brachot\Bsafa_Brura-01_BR-35.mp3"
-    # silence_file = "output_repo\\brachot\\silences\\Bsafa_Brura-01_BR-35.srt.silences"
+    # file = "output_repo\\brachot\\srt_statistics\\Bsafa_Brura-01_BR-38.srt"
+    # audio_file = "repo_audio\\brachot\Bsafa_Brura-01_BR-38.mp3"
+    # silence_file = "output_repo\\brachot\\silences\\Bsafa_Brura-01_BR-38.srt.silences"
+    # wav_file = convert_mp3_to_wav(audio_file, audio_file.replace('.mp3', '.wav'))   
     # entries = prepare_data_from_srt(file)
     # segments = reconstruct_segments_from_entries(entries)
-    # segments = clean_segments(segments, entries)
+    # segments = clean_segments(segments, entries, wav_file)
     # audio_loader = load_audio(audio_file, slice_length=30)
     # slices = generate_slices(segments, audio_loader.get_duration(), slice_length=30, per_segment_quality_threshold=PROBABILITY_THRESHOLD)
     # slices_statistics(slices, audio_loader.get_duration())

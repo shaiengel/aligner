@@ -33,6 +33,7 @@ faster-whisper = "^1.1.1"
 matplotlib = "^3.10.3"
 audiosample = "^2.2.10"
 datasets = "^3.6.0"
+bs4 = "^0.0.2"
 
 [build-system]
 requires = ["poetry-core"]
