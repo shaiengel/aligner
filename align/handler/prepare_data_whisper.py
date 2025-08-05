@@ -9,7 +9,8 @@ from align.services.create_dataset import (
     create_dataset_card,
     split_dataset,
     save_dataset,
-    upload_dataset_to_hub
+    upload_dataset_to_hub,
+    load_dataset_from_disk
     )
 from stable_whisper.result import WhisperResult, Segment, WordTiming
 from align.services.silence_segment_analyzer import read_silence_segments, decide_state_transition
@@ -221,6 +222,17 @@ def is_distribution_dense_enough(entry, threshold=PROBABILITY_THRESHOLD, max_fra
 def is_word_max_duration_ok(entry):
     return entry['max_duration'] < MAX_WORD_DURATION
 
+def get_excluded_files(srt_repo):
+    temp = srt_repo.split('\\')
+    temp[-1] = "metadata"
+    excluded_file_0 = Path('\\'.join(temp)) / "bad_files.exclude.txt"
+    if excluded_file_0.exists():
+        with open(excluded_file_0, "r", encoding="utf-8") as f:
+            excluded_files = eval(f.read())
+    else:
+        excluded_files = []
+    return excluded_files
+
 def prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_template, creator, start_page=2):
     
     audio_files = os.listdir(audio_repo)
@@ -230,12 +242,17 @@ def prepare_data_massechet(audio_repo, audio_file_template, doc_repo, doc_file_t
     
     number_of_files = len(audio_files)
     index = start_page  
-    all_datasets = []  
+    all_datasets = [] 
+    excluded_files = get_excluded_files(doc_repo) 
     sum_slice_duration = 0
     sum_audio_duration = 0
     while index <= number_of_files:            
         audio_file = f"{audio_repo}\\{audio_file_template.format(index)}"  
         srt_file = f"{doc_repo}\\{doc_file_template.format(index)}" 
+        if Path(srt_file).stem in excluded_files:
+            logger.info(f"Skipping excluded file: {srt_file}")
+            index += 1
+            continue
         logger.info(f"preparing data for {audio_file} and {srt_file}")  
         wav_file = convert_mp3_to_wav(audio_file, audio_file.replace('.mp3', '.wav'), wav_folder)   
         entries = prepare_data_from_srt(srt_file)
@@ -287,8 +304,10 @@ def prepare_data_repo(respos_dict):
 
     logger.info(f"Total slices duration: {sum_slice_duration}/{sum_audio_duration}")
     output_dataset = concatenate_all_datasets(all_datasets)
-    output_split_dataset = split_dataset(output_dataset, 0.05)
-    save_dataset(output_split_dataset, "brachot_dataset")
+    #save_dataset(output_dataset, "psachim_dataset")
+    save_dataset(output_dataset, "yoma_dataset")
+    #output_split_dataset = split_dataset(output_dataset, 0.05)
+    #save_dataset(output_split_dataset, "shabat_dataset")
 
     #dataset_card = create_dataset_card()
     #upload_dataset_to_hub(output_split_dataset, dataset_card, "portal-daf-yomi/daf-yomi-talmud-whisper-training")   
@@ -297,9 +316,14 @@ def prepare_data_repo(respos_dict):
 
 if __name__ == '__main__': 
     repos = [
-        {'audio_repo': 'repo_audio\\brachot', 'audio_file_template': 'Bsafa_Brura-01_BR-{}.mp3', 'doc_repo': 'output_repo\\brachot\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-01_BR-{}.srt', 'creator': 'zisman', 'start_page': 2}
+        #{'audio_repo': 'repo_audio\\brachot', 'audio_file_template': 'Bsafa_Brura-01_BR-{}.mp3', 'doc_repo': 'output_repo\\brachot\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-01_BR-{}.srt', 'creator': 'zisman', 'start_page': 2}
+        #{'audio_repo': 'repo_audio\\shabat', 'audio_file_template': 'Bsafa_Brura-02_SB-{}.mp3', 'doc_repo': 'output_repo\\shabat\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-02_SB-{}.srt', 'creator': 'zisman', 'start_page': 2}
+        #{'audio_repo': 'repo_audio\\eruvin', 'audio_file_template': 'Bsafa_Brura-03_ER-{}.mp3', 'doc_repo': 'output_repo\\eruvin\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-03_ER-{}.srt', 'creator': 'zisman', 'start_page': 2}
+        #{'audio_repo': 'repo_audio\\psachim', 'audio_file_template': 'Bsafa_Brura-04_PS-{}.mp3', 'doc_repo': 'output_repo\\psachim\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-04_PS-{}.srt', 'creator': 'zisman', 'start_page': 2}
+        {'audio_repo': 'repo_audio\\yoma', 'audio_file_template': 'Bsafa_Brura-06_YM-{}.mp3', 'doc_repo': 'output_repo\\yoma\\srt_statistics', 'doc_file_template': 'Bsafa_Brura-06_YM-{}.srt', 'creator': 'zisman', 'start_page': 2}
     ] 
-    prepare_data_repo(repos)     
+    prepare_data_repo(repos)
+    
     
     
     # file = "output_repo\\brachot\\srt_statistics\\Bsafa_Brura-01_BR-38.srt"

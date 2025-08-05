@@ -14,8 +14,12 @@ def remove_nikud(text):
     return text.strip()
 
 def remove_parantheses(text):
+    #remove content within parentheses and the parentheses themselves
     cleaned_text = re.sub(r'\([^)]*\)', '', text)
-    return cleaned_text
+
+    #remove only brachets
+    cleaned = re.sub(r'[\[\]]', '', text)
+    return cleaned
 
 def remove_marks_for_aligner(text):   
     

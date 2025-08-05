@@ -17,6 +17,7 @@ from datasets import (
     Audio as AudioColumnType,
     Value as ValueColumnType,
     Features,
+    load_from_disk
 )
 from huggingface_hub import DatasetCard, DatasetCardData, upload_file
 
@@ -673,6 +674,10 @@ def save_dataset(dataset: DatasetDict, output_dataset_name: str):
             logger.info(f"{split}: {ds.num_rows} samples")
         else:
             logger.info(f"Dataset created with {dataset.num_rows} samples")
+
+def load_dataset_from_disk(dataset_path: str) -> DatasetDict:
+    dataset = load_from_disk(dataset_path)
+    return dataset
 
 def upload_dataset_to_hub(dataset: DatasetDict, output_dataset_name: str):  
     dataset.push_to_hub(repo_id=output_dataset_name, private=None, max_shard_size="500MB")   

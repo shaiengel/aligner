@@ -112,11 +112,13 @@ def clean_alignment_response(response):
 def write_to_srt(result, audio_file, output_folder):
     filename = Path(audio_file).stem   
     output_file = Path(output_folder) / f'{filename}.srt'  
+    vtt_file = Path(output_folder) / "vtt" / f'{filename}.vtt'
     result = result.merge_by_gap(min_gap = 0.2) 
     result = result.split_by_duration(max_dur = 20) 
     
     #result.adjust_gaps()  
     result.to_srt_vtt(f'{output_file}', word_level=False)
+    result.to_srt_vtt(f'{vtt_file}', word_level=False)
     return output_file
     
 

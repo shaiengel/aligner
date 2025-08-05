@@ -68,21 +68,23 @@ def aligner(audio_file, text: list[str], output_repo, start_search_index=START_S
     
     logger.info(f"search end final cut_from_start {cut_from_start} words from the start") 
     response, _ = audio_to_text_aligner(model, audio_data, full_text, True)
+    create_folder(f"{output_repo}\\vtt")
     output_file = write_to_srt(response, audio_file, output_repo) 
     srt_statistics_repo = f"{output_repo}\\srt_statistics"
     create_folder(srt_statistics_repo)
     result_probability_list = add_probabilties_to_srt(output_file, response.ori_dict["segments"][0]["words"], srt_statistics_repo)
+    metadata_folder = f"{output_repo}\\metadata"
+    create_folder(metadata_folder)
     w = weighted_run_score(result_probability_list)
     logger.info(f"weighted_run_score: w = {w}")
     if w > 0.25:
-        logger.warning(f"WARNING weighted_run_score is {w}. Check the audio quality or the text alignment.")
+        exclude_file(metadata_folder, f"{output_file}")
+        logger.warning(f"WARNING weighted_run_score is {w}. Check the audio quality or the text alignment. {output_file}")
 
     silence_folder = f"{output_repo}\\silences"
     create_folder(silence_folder)
-    find_silence(audio_file, f"{output_file}.silences", silence_folder)
-    metadata_folder = f"{output_repo}\\metadata"
-    create_folder(metadata_folder)
-    write_metadata(audio_file, f"{output_file}", final_start_index, cut_from_start)
+    find_silence(audio_file, f"{output_file}.silences", silence_folder)    
+    write_metadata(metadata_folder, f"{output_file}", final_start_index, cut_from_start)
     cut_from_end = len(start_text.split()) - cut_from_start - 1
     return cut_from_end
     
@@ -283,6 +285,29 @@ def write_metadata(output_folder, output_file, final_start_index, cut_from_start
         data = {
             "final_start_index": final_start_index,
             "cut_from_start": cut_from_start
-        }  
+        }
         with open(output_file, 'w') as f:
-            f.write(json.dumps(data))  # Save silence segments to a file
+            f.write(json.dumps(data)) 
+
+def exclude_file(output_folder, name):
+    if name:
+        output_file = Path(output_folder) / f"bad_files.exclude.txt"
+        filename = Path(name).stem   
+        #output_file = Path(output_folder) / f'{filename}.exclude.txt'
+
+        if output_file.exists():
+            with open(output_file, "r", encoding="utf-8") as f:
+                try:
+                    file_content = eval(f.read())
+                except Exception:
+                    file_content = []
+        else:
+            file_content = []
+
+        # Add new name
+        file_content.append(filename)
+
+        # Write updated list
+        with open(output_file, 'w', encoding="utf-8") as f:
+            f.write(str(file_content))
+                   
